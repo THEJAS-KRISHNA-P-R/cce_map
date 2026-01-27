@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:hive_flutter/hive_flutter.dart';
 
 import '../models/models.dart';
@@ -13,30 +13,30 @@ import 'nav_graph_service.dart';
 /// Supports offline-first operation with Hive for fast local storage
 /// and JSON export/import for data portability.
 class PersistenceService {
-  late Box<String> _nodesBox;
-  late Box<String> _buildingsBox;
+  Box<String>? _nodesBox;
+  Box<String>? _buildingsBox;
   bool _initialized = false;
 
   /// Initializes Hive and opens required boxes
   Future<void> initialize() async {
     if (_initialized) return;
 
-    await Hive.initFlutter();
+    try {
+      await Hive.initFlutter();
 
-    _nodesBox = await Hive.openBox<String>(AppConstants.nodesBoxName);
-    _buildingsBox = await Hive.openBox<String>(AppConstants.buildingsBoxName);
+      _nodesBox = await Hive.openBox<String>(AppConstants.nodesBoxName);
+      _buildingsBox = await Hive.openBox<String>(AppConstants.buildingsBoxName);
 
-    _initialized = true;
+      _initialized = true;
+    } catch (e) {
+      print('Hive initialization failed: $e');
+      // Continue without Hive on web if it fails
+      _initialized = true;
+    }
   }
 
   /// Ensures the service is initialized
-  void _ensureInitialized() {
-    if (!_initialized) {
-      throw StateError(
-        'PersistenceService not initialized. Call initialize() first.',
-      );
-    }
-  }
+  bool get isInitialized => _initialized;
 
   // ============================================================
   // NODE PERSISTENCE
@@ -44,23 +44,23 @@ class PersistenceService {
 
   /// Saves all nodes from the graph service
   Future<void> saveNodes(NavGraphService graphService) async {
-    _ensureInitialized();
+    if (_nodesBox == null) return;
 
-    await _nodesBox.clear();
+    await _nodesBox!.clear();
 
     for (final node in graphService.nodes) {
-      await _nodesBox.put(node.id, jsonEncode(node.toJson()));
+      await _nodesBox!.put(node.id, jsonEncode(node.toJson()));
     }
   }
 
   /// Loads all nodes into the graph service
   Future<void> loadNodes(NavGraphService graphService) async {
-    _ensureInitialized();
+    if (_nodesBox == null) return;
 
     graphService.clearNodes();
 
-    for (final key in _nodesBox.keys) {
-      final jsonStr = _nodesBox.get(key);
+    for (final key in _nodesBox!.keys) {
+      final jsonStr = _nodesBox!.get(key);
       if (jsonStr != null) {
         final node = NavNode.fromJson(jsonDecode(jsonStr));
         graphService.addNode(node);
@@ -70,14 +70,14 @@ class PersistenceService {
 
   /// Saves a single node
   Future<void> saveNode(NavNode node) async {
-    _ensureInitialized();
-    await _nodesBox.put(node.id, jsonEncode(node.toJson()));
+    if (_nodesBox == null) return;
+    await _nodesBox!.put(node.id, jsonEncode(node.toJson()));
   }
 
   /// Deletes a single node
   Future<void> deleteNode(String nodeId) async {
-    _ensureInitialized();
-    await _nodesBox.delete(nodeId);
+    if (_nodesBox == null) return;
+    await _nodesBox!.delete(nodeId);
   }
 
   // ============================================================
@@ -86,23 +86,23 @@ class PersistenceService {
 
   /// Saves all buildings from the graph service
   Future<void> saveBuildings(NavGraphService graphService) async {
-    _ensureInitialized();
+    if (_buildingsBox == null) return;
 
-    await _buildingsBox.clear();
+    await _buildingsBox!.clear();
 
     for (final building in graphService.buildings) {
-      await _buildingsBox.put(building.id, jsonEncode(building.toJson()));
+      await _buildingsBox!.put(building.id, jsonEncode(building.toJson()));
     }
   }
 
   /// Loads all buildings into the graph service
   Future<void> loadBuildings(NavGraphService graphService) async {
-    _ensureInitialized();
+    if (_buildingsBox == null) return;
 
     graphService.clearBuildings();
 
-    for (final key in _buildingsBox.keys) {
-      final jsonStr = _buildingsBox.get(key);
+    for (final key in _buildingsBox!.keys) {
+      final jsonStr = _buildingsBox!.get(key);
       if (jsonStr != null) {
         final building = Building.fromJson(jsonDecode(jsonStr));
         graphService.addBuilding(building);
@@ -128,9 +128,8 @@ class PersistenceService {
 
   /// Clears all persisted data
   Future<void> clearAll() async {
-    _ensureInitialized();
-    await _nodesBox.clear();
-    await _buildingsBox.clear();
+    if (_nodesBox != null) await _nodesBox!.clear();
+    if (_buildingsBox != null) await _buildingsBox!.clear();
   }
 
   // ============================================================
@@ -146,25 +145,6 @@ class PersistenceService {
   void importFromJson(NavGraphService graphService, String jsonStr) {
     final data = jsonDecode(jsonStr) as Map<String, dynamic>;
     graphService.fromJson(data);
-  }
-
-  /// Saves the graph to a JSON file
-  Future<void> saveToFile(NavGraphService graphService, String filePath) async {
-    final jsonStr = exportToJson(graphService);
-    final file = File(filePath);
-    await file.writeAsString(jsonStr);
-  }
-
-  /// Loads the graph from a JSON file
-  Future<void> loadFromFile(
-    NavGraphService graphService,
-    String filePath,
-  ) async {
-    final file = File(filePath);
-    if (await file.exists()) {
-      final jsonStr = await file.readAsString();
-      importFromJson(graphService, jsonStr);
-    }
   }
 
   // ============================================================
@@ -225,19 +205,17 @@ class PersistenceService {
 
   /// Checks if local data exists
   bool hasLocalData() {
-    _ensureInitialized();
-    return _nodesBox.isNotEmpty || _buildingsBox.isNotEmpty;
+    if (_nodesBox == null || _buildingsBox == null) return false;
+    return _nodesBox!.isNotEmpty || _buildingsBox!.isNotEmpty;
   }
 
   /// Gets the count of locally stored nodes
   int get localNodeCount {
-    _ensureInitialized();
-    return _nodesBox.length;
+    return _nodesBox?.length ?? 0;
   }
 
   /// Gets the count of locally stored buildings
   int get localBuildingCount {
-    _ensureInitialized();
-    return _buildingsBox.length;
+    return _buildingsBox?.length ?? 0;
   }
 }
