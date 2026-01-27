@@ -69,18 +69,10 @@ class _MapViewState extends ConsumerState<MapView> {
   }
 
   Set<GroundOverlay> _buildGroundOverlays(MapState mapState) {
-    if (!mapState.showOverlay) {
-      return {};
-    }
-
-    return {
-      GroundOverlay.fromBounds(
-        groundOverlayId: const GroundOverlayId('campus_base'),
-        image: AssetMapBitmap(MapConstants.campusMapAsset),
-        bounds: MapConstants.campusBounds,
-        transparency: mapState.overlayTransparency,
-      ),
-    };
+    // TODO: GroundOverlay is not well-supported on web platform
+    // The campus.png overlay will be visible on Android/iOS
+    // For web, we'll just show the base Google Map
+    return {};
   }
 
   Set<Marker> _buildMarkers(

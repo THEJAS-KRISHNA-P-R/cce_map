@@ -10,8 +10,13 @@ void main() async {
   // Create the provider container
   final container = ProviderContainer();
 
-  // Initialize persistence and load data
-  await container.read(initializationProvider.future);
+  try {
+    // Initialize persistence and load data
+    await container.read(initializationProvider.future);
+  } catch (e) {
+    print('Initialization error: $e');
+    // Continue anyway - we can work without persisted data
+  }
 
   runApp(
     UncontrolledProviderScope(container: container, child: const CceMapApp()),
