@@ -1,4 +1,4 @@
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 /// Represents a navigation node in the campus map.
 ///
@@ -7,6 +7,9 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 class NavNode {
   /// Unique identifier for this node
   final String id;
+
+  /// MapTiler feature ID (original UUID from GeoJSON)
+  final String? maptilerId;
 
   /// Geographic position of the node
   final LatLng position;
@@ -26,23 +29,30 @@ class NavNode {
   /// Node type for visual differentiation
   final NodeType type;
 
+  /// URL for panoramic image (if available)
+  final String? panoUrl;
+
   /// Optional metadata for future extensions (3D nodes, QR codes, etc.)
   final Map<String, dynamic> metadata;
 
   const NavNode({
     required this.id,
     required this.position,
+    this.maptilerId,
     this.buildingId,
     this.floor = 0,
     this.edges = const [],
     this.accessible = true,
     this.type = NodeType.outdoor,
+    this.panoUrl,
     this.metadata = const {},
   });
 
   /// Creates a copy of this node with the given fields replaced
   NavNode copyWith({
     String? id,
+    String? maptilerId,
+    bool clearMaptilerId = false,
     LatLng? position,
     String? buildingId,
     bool clearBuildingId = false,
@@ -50,16 +60,20 @@ class NavNode {
     List<String>? edges,
     bool? accessible,
     NodeType? type,
+    String? panoUrl,
+    bool clearPanoUrl = false,
     Map<String, dynamic>? metadata,
   }) {
     return NavNode(
       id: id ?? this.id,
+      maptilerId: clearMaptilerId ? null : (maptilerId ?? this.maptilerId),
       position: position ?? this.position,
       buildingId: clearBuildingId ? null : (buildingId ?? this.buildingId),
       floor: floor ?? this.floor,
       edges: edges ?? List.from(this.edges),
       accessible: accessible ?? this.accessible,
       type: type ?? this.type,
+      panoUrl: clearPanoUrl ? null : (panoUrl ?? this.panoUrl),
       metadata: metadata ?? Map.from(this.metadata),
     );
   }
@@ -79,6 +93,7 @@ class NavNode {
   factory NavNode.fromJson(Map<String, dynamic> json) {
     return NavNode(
       id: json['id'] as String,
+      maptilerId: json['maptilerId'] as String?,
       position: LatLng(
         (json['lat'] as num).toDouble(),
         (json['lng'] as num).toDouble(),
@@ -93,6 +108,7 @@ class NavNode {
         (t) => t.name == json['type'],
         orElse: () => NodeType.outdoor,
       ),
+      panoUrl: json['panoUrl'] as String?,
       metadata: (json['metadata'] as Map<String, dynamic>?) ?? {},
     );
   }
@@ -101,6 +117,7 @@ class NavNode {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'maptilerId': maptilerId,
       'lat': position.latitude,
       'lng': position.longitude,
       'buildingId': buildingId,
@@ -108,6 +125,7 @@ class NavNode {
       'edges': edges,
       'accessible': accessible,
       'type': type.name,
+      'panoUrl': panoUrl,
       'metadata': metadata,
     };
   }

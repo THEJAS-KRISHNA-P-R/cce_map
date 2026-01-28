@@ -1,4 +1,5 @@
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 /// Represents a building on the campus.
 ///
@@ -76,11 +77,11 @@ class Building {
       id: json['id'] as String,
       name: json['name'] as String,
       bounds: LatLngBounds(
-        southwest: LatLng(
+        LatLng(
           (json['bounds']['sw']['lat'] as num).toDouble(),
           (json['bounds']['sw']['lng'] as num).toDouble(),
         ),
-        northeast: LatLng(
+        LatLng(
           (json['bounds']['ne']['lat'] as num).toDouble(),
           (json['bounds']['ne']['lng'] as num).toDouble(),
         ),
@@ -108,12 +109,12 @@ class Building {
       'name': name,
       'bounds': {
         'sw': {
-          'lat': bounds.southwest.latitude,
-          'lng': bounds.southwest.longitude,
+          'lat': bounds.southWest.latitude,
+          'lng': bounds.southWest.longitude,
         },
         'ne': {
-          'lat': bounds.northeast.latitude,
-          'lng': bounds.northeast.longitude,
+          'lat': bounds.northEast.latitude,
+          'lng': bounds.northEast.longitude,
         },
       },
       'floors': floors,

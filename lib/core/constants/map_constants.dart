@@ -1,4 +1,5 @@
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 
 /// Map-related constants for the campus navigation system.
 ///
@@ -7,21 +8,34 @@ class MapConstants {
   MapConstants._();
 
   // ============================================================
+  // MAPTILER CONFIGURATION
+  // ============================================================
+
+  /// MapTiler API key for tile server access
+  static const String maptilerApiKey = 'AMnMKBwdNa7Bxnr285dU';
+
+  /// MapTiler streets-v2 tile URL template
+  static const String maptilerTileUrl =
+      'https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=$maptilerApiKey';
+
+  /// MapTiler GeoJSON fallback URL
+  static const String maptilerGeoJsonUrl =
+      'https://api.maptiler.com/data/019c058f-eab4-722d-b3c6-707755573081/features.json?key=$maptilerApiKey';
+
+  // ============================================================
   // CAMPUS BOUNDS - CONFIGURE THESE FOR YOUR CAMPUS MAP
   // ============================================================
 
   /// Southwest corner of the campus map overlay
-  /// TODO: Replace with actual campus coordinates
   static const LatLng campusSouthwest = LatLng(10.354052, 76.212284);
 
   /// Northeast corner of the campus map overlay
-  /// TODO: Replace with actual campus coordinates
   static const LatLng campusNortheast = LatLng(10.360867, 76.213160);
 
   /// Campus bounds for the ground overlay
   static final LatLngBounds campusBounds = LatLngBounds(
-    southwest: campusSouthwest,
-    northeast: campusNortheast,
+    campusSouthwest,
+    campusNortheast,
   );
 
   /// Center of the campus
@@ -52,6 +66,9 @@ class MapConstants {
 
   /// Path to the campus map overlay image
   static const String campusMapAsset = 'assets/maps/campus.png';
+
+  /// Path to the GeoJSON data file
+  static const String geojsonDataAsset = 'assets/data/cce_test.geojson';
 
   /// Path to the nodes data file
   static const String nodesDataAsset = 'assets/data/nodes.json';

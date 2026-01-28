@@ -10,19 +10,27 @@ dependencies:
   flutter:
     sdk: flutter
   
-  # Maps
-  google_maps_flutter: ^2.5.0
+  # Maps - flutter_map ecosystem
+  flutter_map: ^6.1.0
+  latlong2: ^0.9.0
+  flutter_map_geojson: ^1.0.5
   
-  # State Management
+  # State Management (hybrid: Provider + Riverpod)
   flutter_riverpod: ^2.4.9
+  provider: ^6.1.1
   
   # Local Storage
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   
+  # Networking & Caching
+  http: ^1.2.0
+  cached_network_image: ^3.3.1
+  
   # Utilities
   uuid: ^4.2.2
   collection: ^1.18.0
+  fluttertoast: ^8.2.4
   
   # Icons
   cupertino_icons: ^1.0.8
@@ -40,3 +48,4 @@ flutter:
   assets:
     - assets/maps/
     - assets/data/
+    - assets/data/cce_test.geojson

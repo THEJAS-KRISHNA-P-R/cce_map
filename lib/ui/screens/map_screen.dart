@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../providers/providers.dart';
-import '../widgets/map_view.dart';
+import '../widgets/flutter_map_view.dart';
 import '../widgets/admin_toolbar.dart';
 import '../widgets/route_info_panel.dart';
 
@@ -67,7 +67,7 @@ class _MapScreenState extends ConsumerState<MapScreen> {
       body: Stack(
         children: [
           // Main map view
-          const MapView(),
+          const FlutterMapView(),
 
           // Admin toolbar (when in admin mode)
           if (isAdminMode)

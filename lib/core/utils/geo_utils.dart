@@ -1,5 +1,5 @@
 import 'dart:math' as math;
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 /// Geographic utility functions for distance and position calculations
 class GeoUtils {

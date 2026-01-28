@@ -1,5 +1,5 @@
 import 'dart:collection';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../models/models.dart';
 import '../core/utils/geo_utils.dart';

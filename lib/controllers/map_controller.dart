@@ -1,15 +1,17 @@
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart' as fm;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../core/constants/map_constants.dart';
 
 /// State for the map controller
 class MapState {
-  /// The Google Maps controller
-  final GoogleMapController? controller;
+  /// The flutter_map controller
+  final fm.MapController? controller;
 
-  /// Current camera position
-  final CameraPosition cameraPosition;
+  /// Current center position
+  final LatLng center;
 
   /// Whether the map is ready
   final bool isReady;
@@ -25,19 +27,16 @@ class MapState {
 
   const MapState({
     this.controller,
-    this.cameraPosition = const CameraPosition(
-      target: LatLng(12.9716, 77.5946),
-      zoom: MapConstants.defaultZoom,
-    ),
+    this.center = const LatLng(10.357459, 76.212722),
     this.isReady = false,
-    this.zoom = MapConstants.defaultZoom,
+    this.zoom = 17.0,
     this.showOverlay = true,
-    this.overlayTransparency = MapConstants.overlayTransparency,
+    this.overlayTransparency = 0.0,
   });
 
   MapState copyWith({
-    GoogleMapController? controller,
-    CameraPosition? cameraPosition,
+    fm.MapController? controller,
+    LatLng? center,
     bool? isReady,
     double? zoom,
     bool? showOverlay,
@@ -45,7 +44,7 @@ class MapState {
   }) {
     return MapState(
       controller: controller ?? this.controller,
-      cameraPosition: cameraPosition ?? this.cameraPosition,
+      center: center ?? this.center,
       isReady: isReady ?? this.isReady,
       zoom: zoom ?? this.zoom,
       showOverlay: showOverlay ?? this.showOverlay,
@@ -57,7 +56,7 @@ class MapState {
 /// Controller for map rendering and camera operations.
 ///
 /// This controller is responsible for:
-/// - Managing the Google Maps controller
+/// - Managing the flutter_map controller
 /// - Camera position and zoom
 /// - Ground overlay visibility
 ///
@@ -66,42 +65,41 @@ class MapController extends StateNotifier<MapState> {
   MapController() : super(const MapState());
 
   /// Called when the map is created
-  void onMapCreated(GoogleMapController controller) {
+  void onMapCreated(fm.MapController controller) {
     state = state.copyWith(controller: controller, isReady: true);
   }
 
   /// Called when camera position changes
-  void onCameraMove(CameraPosition position) {
-    state = state.copyWith(cameraPosition: position, zoom: position.zoom);
+  void onCameraMove(LatLng center, double zoom) {
+    state = state.copyWith(center: center, zoom: zoom);
   }
 
   /// Moves the camera to a specific position
-  Future<void> moveTo(LatLng target, {double? zoom}) async {
+  void moveTo(LatLng target, {double? zoom}) {
     if (state.controller == null) return;
 
-    await state.controller!.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: target, zoom: zoom ?? state.zoom),
+    state.controller!.move(target, zoom ?? state.zoom);
+  }
+
+  /// Moves the camera to show the campus bounds
+  void showCampusBounds() {
+    if (state.controller == null) return;
+
+    state.controller!.fitCamera(
+      fm.CameraFit.bounds(
+        bounds: MapConstants.campusBounds,
+        padding: const EdgeInsets.all(50),
       ),
     );
   }
 
-  /// Moves the camera to show the campus bounds
-  Future<void> showCampusBounds() async {
-    if (state.controller == null) return;
-
-    await state.controller!.animateCamera(
-      CameraUpdate.newLatLngBounds(MapConstants.campusBounds, 50),
-    );
-  }
-
   /// Moves the camera to the campus center
-  Future<void> centerOnCampus() async {
-    await moveTo(MapConstants.campusCenter, zoom: MapConstants.defaultZoom);
+  void centerOnCampus() {
+    moveTo(MapConstants.campusCenter, zoom: MapConstants.defaultZoom);
   }
 
   /// Zooms in
-  Future<void> zoomIn() async {
+  void zoomIn() {
     if (state.controller == null) return;
 
     final newZoom = (state.zoom + 1).clamp(
@@ -109,11 +107,11 @@ class MapController extends StateNotifier<MapState> {
       MapConstants.maxZoom,
     );
 
-    await state.controller!.animateCamera(CameraUpdate.zoomTo(newZoom));
+    state.controller!.move(state.center, newZoom);
   }
 
   /// Zooms out
-  Future<void> zoomOut() async {
+  void zoomOut() {
     if (state.controller == null) return;
 
     final newZoom = (state.zoom - 1).clamp(
@@ -121,7 +119,7 @@ class MapController extends StateNotifier<MapState> {
       MapConstants.maxZoom,
     );
 
-    await state.controller!.animateCamera(CameraUpdate.zoomTo(newZoom));
+    state.controller!.move(state.center, newZoom);
   }
 
   /// Toggles ground overlay visibility
@@ -135,18 +133,18 @@ class MapController extends StateNotifier<MapState> {
   }
 
   /// Fits the camera to show specific bounds
-  Future<void> fitBounds(LatLngBounds bounds, {double padding = 50}) async {
+  void fitBounds(fm.LatLngBounds bounds, {double padding = 50}) {
     if (state.controller == null) return;
 
-    await state.controller!.animateCamera(
-      CameraUpdate.newLatLngBounds(bounds, padding),
+    state.controller!.fitCamera(
+      fm.CameraFit.bounds(bounds: bounds, padding: EdgeInsets.all(padding)),
     );
   }
 
   /// Gets the current visible region
-  Future<LatLngBounds?> getVisibleRegion() async {
+  fm.LatLngBounds? getVisibleRegion() {
     if (state.controller == null) return null;
-    return await state.controller!.getVisibleRegion();
+    return state.controller!.camera.visibleBounds;
   }
 
   @override
