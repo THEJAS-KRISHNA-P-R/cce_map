@@ -173,31 +173,40 @@ class _FlutterMapViewState extends ConsumerState<FlutterMapView> {
       markers.add(
         fm.Marker(
           point: node.position,
-          width: markerSize * 1.5,
-          height: markerSize * 1.5,
+          width: markerSize * 2, // Increased for better tap target
+          height: markerSize * 2,
           child: GestureDetector(
-            onTap: () =>
-                _handleNodeTap(node.id, editorState.isAdminMode, navProvider),
-            child: Container(
-              decoration: BoxDecoration(
-                color: markerColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(50),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+            behavior: HitTestBehavior.opaque, // Ensure taps are detected
+            onTap: () {
+              debugPrint(
+                '[FlutterMapView] Marker onTap triggered for node: ${node.id}',
+              );
+              _handleNodeTap(node.id, editorState.isAdminMode, navProvider);
+            },
+            child: Center(
+              child: Container(
+                width: markerSize,
+                height: markerSize,
+                decoration: BoxDecoration(
+                  color: markerColor,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(50),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: isStart || isEnd
+                    ? Icon(
+                        isStart ? Icons.play_arrow : Icons.flag,
+                        color: Colors.white,
+                        size: markerSize * 0.7,
+                      )
+                    : null,
               ),
-              child: isStart || isEnd
-                  ? Icon(
-                      isStart ? Icons.play_arrow : Icons.flag,
-                      color: Colors.white,
-                      size: markerSize * 0.7,
-                    )
-                  : null,
             ),
           ),
         ),
@@ -213,7 +222,14 @@ class _FlutterMapViewState extends ConsumerState<FlutterMapView> {
     bool isAdminMode,
     NavigationProvider navProvider,
   ) {
+    debugPrint(
+      '[FlutterMapView] _handleNodeTap called with nodeId: $nodeId, isAdminMode: $isAdminMode',
+    );
+
     if (isAdminMode) {
+      debugPrint(
+        '[FlutterMapView] Admin mode - delegating to editor controller',
+      );
       ref.read(editorControllerProvider.notifier).handleNodeTap(nodeId);
 
       // Show delete confirmation if in delete mode
@@ -223,9 +239,18 @@ class _FlutterMapViewState extends ConsumerState<FlutterMapView> {
         _showDeleteConfirmation(nodeId);
       }
     } else {
+      debugPrint(
+        '[FlutterMapView] Normal mode - selecting node and handling navigation',
+      );
       // Select node and optionally enter panorama mode
       navProvider.selectNode(nodeId);
       ref.read(navigationControllerProvider.notifier).handleNodeTap(nodeId);
+
+      // Log current state after tap
+      final navState = ref.read(navigationControllerProvider);
+      debugPrint(
+        '[FlutterMapView] After tap - startNodeId: ${navState.startNodeId}, endNodeId: ${navState.endNodeId}',
+      );
 
       // Prefetch panorama images for next nodes
       _prefetchPanoramaImages(navProvider);

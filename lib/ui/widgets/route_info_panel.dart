@@ -126,6 +126,23 @@ class RouteInfoPanel extends ConsumerWidget {
               ),
             ),
 
+            // Start Navigation button
+            if (!navState.isNavigating) ...[
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () {
+                  ref
+                      .read(navigationControllerProvider.notifier)
+                      .startNavigation();
+                },
+                icon: const Icon(Icons.navigation),
+                label: const Text('Start Navigation'),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ],
+
             // Accessibility filter toggle
             const SizedBox(height: 8),
             Row(

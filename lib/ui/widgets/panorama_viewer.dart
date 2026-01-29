@@ -1,8 +1,8 @@
+import 'package:panorama_viewer/panorama_viewer.dart' as pano;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart' as p;
 
-import '../../core/constants/app_constants.dart';
 import '../../providers/navigation_provider.dart';
 
 /// 360° Panorama Viewer widget for immersive 3D navigation.
@@ -56,22 +56,11 @@ class _PanoramaViewerState extends State<PanoramaViewer> {
       children: [
         // Panorama image with Hero animation
         Hero(
-          tag: 'panorama_${widget.nodeId}',
-          child: InteractiveViewer(
-            minScale: 0.5,
-            maxScale: 4.0,
-            child: CachedNetworkImage(
-              imageUrl: url,
-              fit: BoxFit.cover,
-              width: double.infinity,
-              height: double.infinity,
-              filterQuality: FilterQuality.high,
-              placeholder: (context, url) =>
-                  const Center(child: CircularProgressIndicator()),
-              errorWidget: (context, url, error) => _buildErrorState(
-                'Failed to load panorama. Check your connection.',
-              ),
-            ),
+          tag: 'pano_hero_${widget.nodeId}',
+          child: pano.PanoramaViewer(
+            animSpeed: 0.1,
+            sensorControl: pano.SensorControl.orientation,
+            child: Image(image: CachedNetworkImageProvider(url)),
           ),
         ),
 

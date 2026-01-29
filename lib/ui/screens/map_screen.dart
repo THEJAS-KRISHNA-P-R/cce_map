@@ -5,6 +5,11 @@ import '../../providers/providers.dart';
 import '../widgets/flutter_map_view.dart';
 import '../widgets/admin_toolbar.dart';
 import '../widgets/route_info_panel.dart';
+import '../widgets/location_selector.dart';
+import '../widgets/navigation_guidance_panel.dart';
+import '../widgets/panorama_thumbnail.dart';
+import '../widgets/panorama_viewer.dart';
+import '../../core/utils/geojson_exporter.dart';
 
 /// Main map screen for the indoor navigation app.
 ///
@@ -21,7 +26,24 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   Widget build(BuildContext context) {
     final isAdminMode = ref.watch(isAdminModeProvider);
-    final hasRoute = ref.watch(currentRouteProvider)?.isValid ?? false;
+    final navState = ref.watch(navigationControllerProvider);
+    // Navigation Provider for visual mode state
+    final navProvider = ref.watch(navigationProviderProvider);
+    final isVisualMode = navProvider.isVisualMode;
+    final visualNodeId = navProvider.selectedNodeId;
+
+    // Show PanoramaViewer if in visual mode
+    if (isVisualMode && visualNodeId != null) {
+      return Scaffold(
+        body: PanoramaViewer(
+          nodeId: visualNodeId,
+          onExit: () => ref.read(navigationProviderProvider).exitPanoramaMode(),
+        ),
+      );
+    }
+
+    final hasRoute = navState.hasRoute;
+    final isNavigating = navState.isNavigating;
     final editorState = ref.watch(editorControllerProvider);
 
     return Scaffold(
@@ -53,6 +75,27 @@ class _MapScreenState extends ConsumerState<MapScreen> {
                 }
               },
             ),
+          // Export GeoJSON button (only in admin mode)
+          if (isAdminMode)
+            IconButton(
+              icon: const Icon(Icons.download),
+              tooltip: 'Save to GeoJSON File',
+              onPressed: () async {
+                final graphService = ref.read(navGraphServiceProvider);
+                final success = await GeoJsonExporter.saveToFile(graphService);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        success
+                            ? '✅ Saved to assets/data/cce_test.geojson'
+                            : '❌ Save failed - is the server running?',
+                      ),
+                    ),
+                  );
+                }
+              },
+            ),
           // Clear route button
           if (hasRoute)
             IconButton(
@@ -64,52 +107,155 @@ class _MapScreenState extends ConsumerState<MapScreen> {
             ),
         ],
       ),
-      body: Stack(
-        children: [
-          // Main map view
-          const FlutterMapView(),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final isDesktop = constraints.maxWidth > 800; // Basic breakpoint
 
-          // Admin toolbar (when in admin mode)
-          if (isAdminMode)
-            const Positioned(left: 16, top: 16, child: AdminToolbar()),
+          return Stack(
+            children: [
+              // Main map view
+              const FlutterMapView(),
 
-          // Route info panel (when route is active)
-          if (hasRoute && !isAdminMode)
-            const Positioned(
-              left: 16,
-              right: 16,
-              bottom: 16,
-              child: RouteInfoPanel(),
-            ),
+              // Admin toolbar (when in admin mode)
+              if (isAdminMode)
+                const Positioned(left: 16, top: 16, child: AdminToolbar()),
 
-          // Unsaved changes indicator
-          if (isAdminMode && editorState.hasUnsavedChanges)
-            Positioned(
-              right: 16,
-              top: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+              // Location selector (when no route and not in admin mode)
+              if (!hasRoute && !isAdminMode)
+                const Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 16,
+                  child: LocationSelector(),
                 ),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withAlpha((0.9 * 255).round()),
-                  borderRadius: BorderRadius.circular(16),
+
+              // Route info panel (when route exists but not navigating, and not in admin mode)
+              if (hasRoute && !isNavigating && !isAdminMode)
+                const Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 16,
+                  child: RouteInfoPanel(),
                 ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.warning, color: Colors.white, size: 16),
-                    SizedBox(width: 4),
-                    Text(
-                      'Unsaved changes',
-                      style: TextStyle(color: Colors.white, fontSize: 12),
+
+              // Navigation guidance panel (when actively navigating)
+              if (isNavigating && !isAdminMode)
+                const Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 16,
+                  child: NavigationGuidancePanel(),
+                ),
+
+              // Unsaved changes indicator
+              if (isAdminMode && editorState.hasUnsavedChanges)
+                Positioned(
+                  right: 16,
+                  top: 16,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
                     ),
-                  ],
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withAlpha((0.9 * 255).round()),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.warning, color: Colors.white, size: 16),
+                        SizedBox(width: 4),
+                        Text(
+                          'Unsaved changes',
+                          style: TextStyle(color: Colors.white, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Street View Thumbnail (Moved to Top of Stack)
+              Positioned(
+                right: 16,
+                // Adjust bottom padding based on active panels (Guidance/RouteInfo)
+                // Guidance panel is approx 100-120 height, so we clear it.
+                bottom: (isNavigating || hasRoute)
+                    ? 140
+                    : (isDesktop ? 32 : 90),
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final isAdminMode = ref.watch(isAdminModeProvider);
+                    final navState = ref.watch(navigationControllerProvider);
+                    final graphService = ref.watch(navGraphServiceProvider);
+
+                    // In admin mode, use editor selection. In normal mode, use navigation provider selection.
+                    final String? selectedNodeId = isAdminMode
+                        ? ref.watch(selectedNodeIdProvider)
+                        : ref.watch(navigationProviderProvider).selectedNodeId;
+
+                    // Determine effective node ID.
+                    // Prioritize explicit selection. Fallback to current nav step if nothing selected.
+                    String? effectiveNodeId = selectedNodeId;
+                    if (effectiveNodeId == null &&
+                        navState.isNavigating &&
+                        navState.startNodeId != null) {
+                      effectiveNodeId = navState.startNodeId;
+                    }
+
+                    if (effectiveNodeId == null) return const SizedBox.shrink();
+
+                    final node = graphService.getNode(effectiveNodeId);
+                    if (node == null) return const SizedBox.shrink();
+
+                    // Check if node has a panorama
+                    if (node.panoUrl == null || node.panoUrl!.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+
+                    return PanoramaThumbnail(
+                      node: node,
+                      onTap: () {
+                        // Push PanoramaViewer as a new route for Hero transition
+                        Navigator.of(context).push(
+                          PageRouteBuilder(
+                            pageBuilder:
+                                (context, animation, secondaryAnimation) {
+                                  return PanoramaViewer(
+                                    nodeId: node.id,
+                                    onExit: () => Navigator.of(
+                                      context,
+                                    ).pop(), // Pop to return
+                                  );
+                                },
+                            transitionsBuilder:
+                                (
+                                  context,
+                                  animation,
+                                  secondaryAnimation,
+                                  child,
+                                ) {
+                                  return FadeTransition(
+                                    opacity: animation,
+                                    child: child,
+                                  );
+                                },
+                            transitionDuration: const Duration(
+                              milliseconds: 400,
+                            ),
+                            reverseTransitionDuration: const Duration(
+                              milliseconds: 300,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
-            ),
-        ],
+            ],
+          );
+        },
       ),
       floatingActionButton: _buildFAB(context, isAdminMode),
     );
@@ -117,10 +263,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
 
   Widget? _buildFAB(BuildContext context, bool isAdminMode) {
     if (isAdminMode) {
-      return null; // No FAB in admin mode
+      return null;
     }
 
     return FloatingActionButton(
+      heroTag: 'center_fab',
       onPressed: () {
         ref.read(mapControllerProvider.notifier).centerOnCampus();
       },

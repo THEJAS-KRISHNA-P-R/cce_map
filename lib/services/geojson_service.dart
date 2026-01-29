@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/services.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -105,7 +106,69 @@ class GeoJsonService {
       }
     }
 
+    // Auto-connect nodes to ensure full connectivity
+    // DISABLED: User wants full manual control over connections
+    // Uncomment this if you want automatic edge generation between nearby nodes
+    // _autoConnectNodes();
+
     return List.unmodifiable(_nodes);
+  }
+
+  /// Automatically connects nodes to their nearest neighbors.
+  ///
+  /// This ensures all nodes are reachable even if LineString features
+  /// don't fully define the graph. Each node is connected to its K nearest
+  /// neighbors within a maximum distance threshold.
+  void _autoConnectNodes() {
+    const int kNearestNeighbors = 3; // Connect to 3 nearest neighbors
+    const double maxDistanceMeters = 100.0; // Max 100m connection distance
+
+    for (int i = 0; i < _nodes.length; i++) {
+      final node = _nodes[i];
+
+      // Skip if node already has enough connections
+      if (node.edges.length >= kNearestNeighbors) continue;
+
+      // Find nearest neighbors
+      final neighbors = <({String id, double distance})>[];
+
+      for (int j = 0; j < _nodes.length; j++) {
+        if (i == j) continue; // Skip self
+
+        final otherNode = _nodes[j];
+        final distance = _calculateDistance(node.position, otherNode.position);
+
+        if (distance <= maxDistanceMeters) {
+          neighbors.add((id: otherNode.id, distance: distance));
+        }
+      }
+
+      // Sort by distance and take K nearest
+      neighbors.sort((a, b) => a.distance.compareTo(b.distance));
+      final toConnect = neighbors.take(kNearestNeighbors);
+
+      // Connect to nearest neighbors
+      for (final neighbor in toConnect) {
+        _connectNodes(node.id, neighbor.id);
+      }
+    }
+  }
+
+  /// Calculates distance between two positions in meters.
+  double _calculateDistance(LatLng pos1, LatLng pos2) {
+    const double earthRadius = 6371000; // meters
+
+    final lat1 = pos1.latitude * pi / 180;
+    final lat2 = pos2.latitude * pi / 180;
+    final dLat = (pos2.latitude - pos1.latitude) * pi / 180;
+    final dLng = (pos2.longitude - pos1.longitude) * pi / 180;
+
+    final a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(lat1) * cos(lat2) * sin(dLng / 2) * sin(dLng / 2);
+
+    final c = 2 * asin(sqrt(a));
+    return earthRadius * c;
   }
 
   /// Parses a Point feature into a NavNode.

@@ -26,6 +26,7 @@ dependencies:
   # Networking & Caching
   http: ^1.2.0
   cached_network_image: ^3.3.1
+  panorama_viewer: ^2.0.7
   
   # Utilities
   uuid: ^4.2.2
@@ -34,6 +35,12 @@ dependencies:
   
   # Icons
   cupertino_icons: ^1.0.8
+  
+  # Local save server dependencies
+  shelf: ^1.4.1
+  shelf_cors_headers: ^0.1.5
+  firebase_core: ^4.4.0
+  cloud_firestore: ^6.1.2
 
 dev_dependencies:
   flutter_test:

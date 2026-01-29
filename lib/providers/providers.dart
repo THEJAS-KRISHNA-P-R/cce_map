@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/models.dart';
 import '../services/services.dart';
 import '../controllers/controllers.dart';
+import 'navigation_provider.dart';
 
 // ============================================================
 // SERVICE PROVIDERS
@@ -83,6 +84,13 @@ final isAdminModeProvider = Provider<bool>((ref) {
 final selectedNodeIdProvider = Provider<String?>((ref) {
   final editorState = ref.watch(editorControllerProvider);
   return editorState.selectedNodeId;
+});
+
+/// Provider for the navigation provider (for accessing nodes and panorama data)
+final navigationProviderProvider = ChangeNotifierProvider<NavigationProvider>((
+  ref,
+) {
+  return NavigationProvider();
 });
 
 /// Provider for the current editor tool

@@ -1,5 +1,7 @@
 import 'package:latlong2/latlong.dart';
 
+import 'navigation_step.dart';
+
 /// Represents the result of a route calculation.
 ///
 /// Contains the ordered list of nodes, polyline points for rendering,
@@ -29,6 +31,9 @@ class RouteResult {
   /// Ending floor number
   final int endFloor;
 
+  /// Turn-by-turn navigation steps
+  final List<NavigationStep> steps;
+
   const RouteResult({
     required this.nodeIds,
     required this.polylinePoints,
@@ -38,6 +43,7 @@ class RouteResult {
     this.floorTransitions = 0,
     this.startFloor = 0,
     this.endFloor = 0,
+    this.steps = const [],
   });
 
   /// Creates an empty result (no route found)
@@ -47,6 +53,7 @@ class RouteResult {
       polylinePoints: [],
       totalDistance: 0,
       isAccessible: true,
+      steps: [],
     );
   }
 
@@ -78,6 +85,35 @@ class RouteResult {
     return '$hours h $remainingMinutes min';
   }
 
+  /// Number of navigation steps
+  int get stepCount => steps.length;
+
+  /// Get a specific navigation step by index
+  NavigationStep? getStep(int index) {
+    if (index < 0 || index >= steps.length) return null;
+    return steps[index];
+  }
+
+  /// Calculate remaining distance from a given step index
+  double getRemainingDistance(int fromStepIndex) {
+    if (fromStepIndex < 0 || fromStepIndex >= steps.length) return 0;
+
+    double remaining = 0;
+    for (int i = fromStepIndex; i < steps.length; i++) {
+      remaining += steps[i].distance;
+    }
+    return remaining;
+  }
+
+  /// Calculate progress percentage (0.0 to 1.0) based on current step
+  double getProgressPercentage(int currentStepIndex) {
+    if (steps.isEmpty || totalDistance == 0) return 0;
+    if (currentStepIndex >= steps.length) return 1.0;
+
+    final completed = totalDistance - getRemainingDistance(currentStepIndex);
+    return (completed / totalDistance).clamp(0.0, 1.0);
+  }
+
   /// Creates a copy with the given fields replaced
   RouteResult copyWith({
     List<String>? nodeIds,
@@ -88,6 +124,7 @@ class RouteResult {
     int? floorTransitions,
     int? startFloor,
     int? endFloor,
+    List<NavigationStep>? steps,
   }) {
     return RouteResult(
       nodeIds: nodeIds ?? this.nodeIds,
@@ -98,6 +135,7 @@ class RouteResult {
       floorTransitions: floorTransitions ?? this.floorTransitions,
       startFloor: startFloor ?? this.startFloor,
       endFloor: endFloor ?? this.endFloor,
+      steps: steps ?? this.steps,
     );
   }
 

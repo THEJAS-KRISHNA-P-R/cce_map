@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../models/models.dart';
 import '../services/services.dart';
+import '../core/config/github_config.dart';
 
 /// Provider-based state management for navigation and panorama viewing.
 ///
@@ -24,14 +25,9 @@ class NavigationProvider extends ChangeNotifier {
   /// Queue of node IDs to prefetch panoramas for
   List<String> _prefetchQueue = [];
 
-  /// All nodes in the navigation graph
-  List<NavNode> _nodes = [];
-
-  /// Map of node ID to NavNode for quick lookup
-  final Map<String, NavNode> _nodeMap = {};
-
-  /// GeoJSON service for data loading
-  final GeoJsonService _geoJsonService = GeoJsonService();
+  /// Reference to the graph service for data access
+  late NavGraphService _graphService;
+  bool _isInitialized = false;
 
   // ============================================================
   // GETTERS
@@ -50,37 +46,25 @@ class NavigationProvider extends ChangeNotifier {
   List<String> get prefetchQueue => List.unmodifiable(_prefetchQueue);
 
   /// All navigation nodes
-  List<NavNode> get nodes => List.unmodifiable(_nodes);
+  List<NavNode> get nodes => _isInitialized ? _graphService.nodes : [];
 
   /// Gets a node by ID
-  NavNode? getNode(String id) => _nodeMap[id];
+  NavNode? getNode(String id) =>
+      _isInitialized ? _graphService.getNode(id) : null;
 
   /// Gets the currently selected node
   NavNode? get selectedNode =>
-      _selectedNodeId != null ? _nodeMap[_selectedNodeId] : null;
+      _selectedNodeId != null ? getNode(_selectedNodeId!) : null;
 
   // ============================================================
   // INITIALIZATION
   // ============================================================
 
-  /// Initializes the provider by loading GeoJSON data.
+  /// Initializes the provider with the graph service.
   Future<void> initialize(NavGraphService graphService) async {
-    try {
-      _nodes = await _geoJsonService.loadNavGraph();
-
-      // Build lookup map
-      _nodeMap.clear();
-      for (final node in _nodes) {
-        _nodeMap[node.id] = node;
-        // Also add to graph service
-        graphService.addNode(node);
-      }
-
-      notifyListeners();
-    } catch (e) {
-      debugPrint('Failed to initialize navigation: $e');
-      rethrow;
-    }
+    _graphService = graphService;
+    _isInitialized = true;
+    notifyListeners();
   }
 
   // ============================================================
@@ -120,7 +104,8 @@ class NavigationProvider extends ChangeNotifier {
 
   /// Selects a node and calculates prefetch queue.
   void selectNode(String nodeId) {
-    if (!_nodeMap.containsKey(nodeId)) return;
+    // Verify node exists in graph service
+    if (!_isInitialized || _graphService.getNode(nodeId) == null) return;
 
     _previousNodeId = _selectedNodeId;
     _selectedNodeId = nodeId;
@@ -144,15 +129,15 @@ class NavigationProvider extends ChangeNotifier {
   void _calculatePrefetchQueue() {
     _prefetchQueue.clear();
 
-    if (_selectedNodeId == null) return;
+    if (_selectedNodeId == null || !_isInitialized) return;
 
-    final currentNode = _nodeMap[_selectedNodeId];
+    final currentNode = getNode(_selectedNodeId!);
     if (currentNode == null) return;
 
     // Get connected nodes
     final connectedNodes = <NavNode>[];
     for (final edgeId in currentNode.edges) {
-      final node = _nodeMap[edgeId];
+      final node = getNode(edgeId);
       if (node != null) {
         connectedNodes.add(node);
       }
@@ -161,25 +146,26 @@ class NavigationProvider extends ChangeNotifier {
     if (connectedNodes.isEmpty) return;
 
     // If we have a previous node, prioritize nodes in the same direction
-    if (_previousNodeId != null && _nodeMap.containsKey(_previousNodeId)) {
-      final prevNode = _nodeMap[_previousNodeId]!;
+    if (_previousNodeId != null) {
+      final prevNode = getNode(_previousNodeId!);
+      if (prevNode != null) {
+        // Calculate movement direction (bearing)
+        final movementBearing = _calculateBearing(
+          prevNode.position,
+          currentNode.position,
+        );
 
-      // Calculate movement direction (bearing)
-      final movementBearing = _calculateBearing(
-        prevNode.position,
-        currentNode.position,
-      );
+        // Sort connected nodes by how close their direction is to our movement
+        connectedNodes.sort((a, b) {
+          final bearingA = _calculateBearing(currentNode.position, a.position);
+          final bearingB = _calculateBearing(currentNode.position, b.position);
 
-      // Sort connected nodes by how close their direction is to our movement
-      connectedNodes.sort((a, b) {
-        final bearingA = _calculateBearing(currentNode.position, a.position);
-        final bearingB = _calculateBearing(currentNode.position, b.position);
+          final diffA = _bearingDifference(movementBearing, bearingA);
+          final diffB = _bearingDifference(movementBearing, bearingB);
 
-        final diffA = _bearingDifference(movementBearing, bearingA);
-        final diffB = _bearingDifference(movementBearing, bearingB);
-
-        return diffA.compareTo(diffB);
-      });
+          return diffA.compareTo(diffB);
+        });
+      }
     }
 
     // Take up to 3 nodes for prefetching
@@ -206,25 +192,16 @@ class NavigationProvider extends ChangeNotifier {
   }
 
   // ============================================================
-  // FIREBASE URL HELPERS
+  // PANORAMA URL GENERATION
   // ============================================================
 
-  /// Base URL for Firebase Storage (configure for your project).
-  static const String _firebaseStorageBase =
-      'https://firebasestorage.googleapis.com/v0/b/YOUR_BUCKET/o/panoramas%2F';
-
-  /// Gets the Firebase panorama URL for a node.
+  /// Gets the panorama URL for a given node.
   String? getPanoramaUrl(String nodeId) {
-    final node = _nodeMap[nodeId];
-    if (node == null) return null;
+    final node = getNode(nodeId);
+    if (node?.panoUrl == null) return null;
 
-    // Use custom pano_url if available, otherwise build default URL
-    if (node.panoUrl != null && node.panoUrl!.isNotEmpty) {
-      return node.panoUrl;
-    }
-
-    // Build URL from node ID (assumes .webp format)
-    return '$_firebaseStorageBase$nodeId.webp?alt=media';
+    // Use GitHub Pages configuration
+    return GitHubConfig.getPanoramaUrl(node!.panoUrl!);
   }
 
   /// Gets panorama URLs for the prefetch queue.

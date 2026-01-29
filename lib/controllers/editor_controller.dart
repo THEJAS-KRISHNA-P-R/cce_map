@@ -21,6 +21,9 @@ enum EditorTool {
 
   /// Connect nodes mode
   connectNodes,
+
+  /// Disconnect nodes mode
+  disconnectNodes,
 }
 
 /// State for the editor controller
@@ -188,6 +191,46 @@ class EditorController extends StateNotifier<EditorState> {
     state = state.copyWith(hasUnsavedChanges: true);
   }
 
+  /// Sets a friendly name for a node
+  void setNodeName(String nodeId, String name) {
+    final node = _graphService.getNode(nodeId);
+    if (node == null) return;
+
+    // Update metadata with the name
+    final updatedMetadata = Map<String, dynamic>.from(node.metadata);
+    if (name.trim().isEmpty) {
+      updatedMetadata.remove('name');
+    } else {
+      updatedMetadata['name'] = name.trim();
+    }
+
+    final updatedNode = node.copyWith(metadata: updatedMetadata);
+    _graphService.updateNode(updatedNode);
+    state = state.copyWith(hasUnsavedChanges: true);
+  }
+
+  /// Sets the panorama URL for a node
+  void setNodePanoUrl(String nodeId, String? url) {
+    if (!state.isAdminMode) return;
+
+    final node = _graphService.getNode(nodeId);
+    if (node != null) {
+      final newNode = node.copyWith(
+        panoUrl: url,
+        clearPanoUrl: url == null || url.trim().isEmpty,
+      );
+      _graphService.updateNode(newNode);
+      state = state.copyWith(hasUnsavedChanges: true);
+
+      // Auto-save changes for immediate persistence
+      try {
+        saveChanges();
+      } catch (e) {
+        print('Auto-save failed: $e');
+      }
+    }
+  }
+
   // ============================================================
   // SELECTION
   // ============================================================
@@ -196,6 +239,8 @@ class EditorController extends StateNotifier<EditorState> {
   void selectNode(String nodeId) {
     if (state.currentTool == EditorTool.connectNodes) {
       _handleConnectNodeTap(nodeId);
+    } else if (state.currentTool == EditorTool.disconnectNodes) {
+      _handleDisconnectNodeTap(nodeId);
     } else {
       state = state.copyWith(selectedNodeId: nodeId);
     }
@@ -220,6 +265,21 @@ class EditorController extends StateNotifier<EditorState> {
     } else {
       // Second tap - create connection
       connectNodes(state.connectFromNodeId!, nodeId);
+      state = state.copyWith(clearConnectFromNodeId: true);
+    }
+  }
+
+  /// Handles tapping a node in disconnect mode
+  void _handleDisconnectNodeTap(String nodeId) {
+    if (state.connectFromNodeId == null) {
+      // First tap - set as source
+      state = state.copyWith(connectFromNodeId: nodeId);
+    } else if (state.connectFromNodeId == nodeId) {
+      // Same node - cancel
+      state = state.copyWith(clearConnectFromNodeId: true);
+    } else {
+      // Second tap - disconnect if connected
+      disconnectNodes(state.connectFromNodeId!, nodeId);
       state = state.copyWith(clearConnectFromNodeId: true);
     }
   }
@@ -250,7 +310,10 @@ class EditorController extends StateNotifier<EditorState> {
 
   /// Saves all changes
   Future<void> saveChanges() async {
+    print('[EditorController] Saving changes...');
+    print('[EditorController] Node count: ${_graphService.nodes.length}');
     await _persistenceService.saveGraph(_graphService);
+    print('[EditorController] Changes saved successfully');
     state = state.copyWith(hasUnsavedChanges: false);
   }
 

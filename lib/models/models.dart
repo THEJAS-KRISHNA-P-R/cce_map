@@ -7,3 +7,4 @@ export 'nav_node.dart';
 export 'building.dart';
 export 'nav_edge.dart';
 export 'route_result.dart';
+export 'navigation_step.dart';

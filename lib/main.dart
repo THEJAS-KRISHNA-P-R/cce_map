@@ -6,8 +6,13 @@ import 'app.dart';
 import 'providers/providers.dart';
 import 'providers/navigation_provider.dart';
 
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Create the Riverpod provider container
   final container = ProviderContainer();

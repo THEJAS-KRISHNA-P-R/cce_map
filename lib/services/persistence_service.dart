@@ -1,113 +1,109 @@
 import 'dart:convert';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:hive_flutter/hive_flutter.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/models.dart';
-import '../core/constants/app_constants.dart';
 import '../core/constants/map_constants.dart';
 import 'nav_graph_service.dart';
 
-/// Service for persisting navigation data locally.
-///
-/// Supports offline-first operation with Hive for fast local storage
-/// and JSON export/import for data portability.
+/// Service for persisting navigation data using Firebase Firestore.
 class PersistenceService {
-  Box<String>? _nodesBox;
-  Box<String>? _buildingsBox;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool _initialized = false;
 
-  /// Initializes Hive and opens required boxes
+  /// Initializes the service
   Future<void> initialize() async {
-    if (_initialized) return;
-
-    try {
-      await Hive.initFlutter();
-
-      _nodesBox = await Hive.openBox<String>(AppConstants.nodesBoxName);
-      _buildingsBox = await Hive.openBox<String>(AppConstants.buildingsBoxName);
-
-      _initialized = true;
-    } catch (e) {
-      print('Hive initialization failed: $e');
-      // Continue without Hive on web if it fails
-      _initialized = true;
-    }
+    // Firestore is auto-initialized by Firebase.initializeApp() in main
+    _initialized = true;
+    print('PersistenceService (Firestore) initialized');
   }
 
   /// Ensures the service is initialized
   bool get isInitialized => _initialized;
 
   // ============================================================
-  // NODE PERSISTENCE
+  // NODE PERSISTENCE (FIRESTORE)
   // ============================================================
 
-  /// Saves all nodes from the graph service
+  /// Saves all nodes from the graph service to Firestore
   Future<void> saveNodes(NavGraphService graphService) async {
-    if (_nodesBox == null) return;
-
-    await _nodesBox!.clear();
+    final batch = _firestore.batch();
 
     for (final node in graphService.nodes) {
-      await _nodesBox!.put(node.id, jsonEncode(node.toJson()));
+      final docRef = _firestore.collection('nodes').doc(node.id);
+      batch.set(docRef, node.toJson());
     }
-  }
 
-  /// Loads all nodes into the graph service
-  Future<void> loadNodes(NavGraphService graphService) async {
-    if (_nodesBox == null) return;
-
-    graphService.clearNodes();
-
-    for (final key in _nodesBox!.keys) {
-      final jsonStr = _nodesBox!.get(key);
-      if (jsonStr != null) {
-        final node = NavNode.fromJson(jsonDecode(jsonStr));
-        graphService.addNode(node);
+    try {
+      await batch.commit();
+      print('✅ Batch saved ${graphService.nodes.length} nodes to Firestore');
+    } catch (e) {
+      print('❌ Error batch saving nodes: $e');
+      // If batch fails (too large), fallback to individual saves
+      for (final node in graphService.nodes) {
+        await saveNode(node);
       }
     }
   }
 
-  /// Saves a single node
-  Future<void> saveNode(NavNode node) async {
-    if (_nodesBox == null) return;
-    await _nodesBox!.put(node.id, jsonEncode(node.toJson()));
+  /// Loads all nodes from Firestore
+  Future<void> loadNodes(NavGraphService graphService) async {
+    try {
+      final snapshot = await _firestore.collection('nodes').get();
+
+      if (snapshot.docs.isNotEmpty) {
+        graphService.clearNodes();
+
+        for (final doc in snapshot.docs) {
+          try {
+            final node = NavNode.fromJson(doc.data());
+            graphService.addNode(node);
+          } catch (e) {
+            print('Error parsing node ${doc.id}: $e');
+          }
+        }
+        print('✅ Loaded ${snapshot.docs.length} nodes from Firestore');
+      } else {
+        print('No nodes found in Firestore');
+      }
+    } catch (e) {
+      print('❌ Error loading nodes from Firestore: $e');
+    }
   }
 
-  /// Deletes a single node
+  /// Saves a single node to Firestore
+  Future<void> saveNode(NavNode node) async {
+    try {
+      await _firestore.collection('nodes').doc(node.id).set(node.toJson());
+      // print('Saved node ${node.id} to Firestore');
+    } catch (e) {
+      print('❌ Error saving node ${node.id}: $e');
+    }
+  }
+
+  /// Deletes a single node from Firestore
   Future<void> deleteNode(String nodeId) async {
-    if (_nodesBox == null) return;
-    await _nodesBox!.delete(nodeId);
+    try {
+      await _firestore.collection('nodes').doc(nodeId).delete();
+      print('Deleted node $nodeId from Firestore');
+    } catch (e) {
+      print('❌ Error deleting node $nodeId: $e');
+    }
   }
 
   // ============================================================
   // BUILDING PERSISTENCE
   // ============================================================
 
-  /// Saves all buildings from the graph service
+  /// Saves all buildings
   Future<void> saveBuildings(NavGraphService graphService) async {
-    if (_buildingsBox == null) return;
-
-    await _buildingsBox!.clear();
-
-    for (final building in graphService.buildings) {
-      await _buildingsBox!.put(building.id, jsonEncode(building.toJson()));
-    }
+    // TODO: Implement buildings collection in Firestore if needed
   }
 
-  /// Loads all buildings into the graph service
+  /// Loads all buildings
   Future<void> loadBuildings(NavGraphService graphService) async {
-    if (_buildingsBox == null) return;
-
-    graphService.clearBuildings();
-
-    for (final key in _buildingsBox!.keys) {
-      final jsonStr = _buildingsBox!.get(key);
-      if (jsonStr != null) {
-        final building = Building.fromJson(jsonDecode(jsonStr));
-        graphService.addBuilding(building);
-      }
-    }
+    // Load default buildings from assets for now
+    await loadBuildingsFromAsset(graphService);
   }
 
   // ============================================================
@@ -116,8 +112,10 @@ class PersistenceService {
 
   /// Saves the entire graph
   Future<void> saveGraph(NavGraphService graphService) async {
+    print('[PersistenceService] Saving graph to Firestore...');
     await saveNodes(graphService);
-    await saveBuildings(graphService);
+    // await saveBuildings(graphService);
+    print('[PersistenceService] Graph saved successfully');
   }
 
   /// Loads the entire graph
@@ -126,10 +124,10 @@ class PersistenceService {
     await loadBuildings(graphService);
   }
 
-  /// Clears all persisted data
+  /// Clears all data
   Future<void> clearAll() async {
-    if (_nodesBox != null) await _nodesBox!.clear();
-    if (_buildingsBox != null) await _buildingsBox!.clear();
+    // Dangerous op in Firestore, avoided for now
+    print('Clear all not implemented');
   }
 
   // ============================================================
@@ -203,19 +201,11 @@ class PersistenceService {
   // SYNC STATUS
   // ============================================================
 
-  /// Checks if local data exists
+  /// Checks if connected
   bool hasLocalData() {
-    if (_nodesBox == null || _buildingsBox == null) return false;
-    return _nodesBox!.isNotEmpty || _buildingsBox!.isNotEmpty;
+    return true;
   }
 
-  /// Gets the count of locally stored nodes
-  int get localNodeCount {
-    return _nodesBox?.length ?? 0;
-  }
-
-  /// Gets the count of locally stored buildings
-  int get localBuildingCount {
-    return _buildingsBox?.length ?? 0;
-  }
+  int get localNodeCount => 0;
+  int get localBuildingCount => 0;
 }

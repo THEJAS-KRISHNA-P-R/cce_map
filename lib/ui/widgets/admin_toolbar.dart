@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/providers.dart';
 import '../../controllers/controllers.dart';
 import '../../models/models.dart';
+import '../dialogs/node_name_dialog.dart';
+import '../dialogs/node_pano_dialog.dart';
 
 /// Admin toolbar for map editing operations.
 ///
@@ -90,6 +92,61 @@ class AdminToolbar extends ConsumerWidget {
                   onPressed: () => ref
                       .read(editorControllerProvider.notifier)
                       .setTool(EditorTool.connectNodes),
+                ),
+                _ToolButton(
+                  icon: Icons.link_off,
+                  label: 'Disconnect',
+                  isSelected:
+                      editorState.currentTool == EditorTool.disconnectNodes,
+                  onPressed: () => ref
+                      .read(editorControllerProvider.notifier)
+                      .setTool(EditorTool.disconnectNodes),
+                ),
+                _ToolButton(
+                  icon: Icons.label,
+                  label: 'Name',
+                  isSelected: false,
+                  onPressed: () {
+                    if (editorState.selectedNodeId != null) {
+                      _showNameDialog(
+                        context,
+                        ref,
+                        editorState.selectedNodeId!,
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Please select a node first (use Move tool or tap a node)',
+                          ),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                ),
+                _ToolButton(
+                  icon: Icons.panorama,
+                  label: 'Pano',
+                  isSelected: false,
+                  onPressed: () {
+                    if (editorState.selectedNodeId != null) {
+                      NodePanoDialog.show(
+                        context,
+                        ref,
+                        editorState.selectedNodeId!,
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Please select a node first (use Move tool or tap a node)',
+                          ),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
                 ),
               ],
             ),
@@ -190,6 +247,28 @@ class AdminToolbar extends ConsumerWidget {
                 ),
             ],
 
+            // Disconnect mode indicator
+            if (editorState.currentTool == EditorTool.disconnectNodes) ...[
+              const Text(
+                'Disconnect Mode',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                editorState.connectFromNodeId == null
+                    ? 'Tap first node'
+                    : 'Tap second node to disconnect',
+                style: const TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              if (editorState.connectFromNodeId != null)
+                TextButton(
+                  onPressed: () => ref
+                      .read(editorControllerProvider.notifier)
+                      .clearSelection(),
+                  child: const Text('Cancel', style: TextStyle(fontSize: 12)),
+                ),
+            ],
+
             // Help text based on tool
             const SizedBox(height: 8),
             _buildHelpText(editorState.currentTool),
@@ -212,6 +291,8 @@ class AdminToolbar extends ConsumerWidget {
         text = 'Tap node to select, tap again to delete';
       case EditorTool.connectNodes:
         text = 'Tap two nodes to connect them';
+      case EditorTool.disconnectNodes:
+        text = 'Tap two connected nodes to disconnect them';
     }
 
     return Container(
@@ -245,6 +326,14 @@ class AdminToolbar extends ConsumerWidget {
       case NodeType.poi:
         return Colors.pink;
     }
+  }
+
+  void _showNameDialog(BuildContext context, WidgetRef ref, String nodeId) {
+    final graphService = ref.read(navGraphServiceProvider);
+    final node = graphService.getNode(nodeId);
+    final currentName = node?.metadata['name'] as String?;
+
+    NodeNameDialog.show(context, nodeId, currentName);
   }
 }
 

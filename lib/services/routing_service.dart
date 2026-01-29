@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../models/models.dart';
 import '../core/utils/geo_utils.dart';
+import '../core/utils/navigation_utils.dart';
 import 'nav_graph_service.dart';
 
 /// Service for calculating routes using Dijkstra's algorithm.
@@ -310,6 +311,9 @@ class RoutingService {
     final startNode = _graphService.getNode(startNodeId)!;
     final endNode = _graphService.getNode(endNodeId)!;
 
+    // Generate turn-by-turn navigation steps
+    final steps = _generateNavigationSteps(path);
+
     return RouteResult(
       nodeIds: path,
       polylinePoints: polylinePoints,
@@ -319,7 +323,69 @@ class RoutingService {
       floorTransitions: floorTransitions,
       startFloor: startNode.floor,
       endFloor: endNode.floor,
+      steps: steps,
     );
+  }
+
+  /// Generates turn-by-turn navigation steps from a path of node IDs.
+  List<NavigationStep> _generateNavigationSteps(List<String> path) {
+    if (path.length < 2) return [];
+
+    final steps = <NavigationStep>[];
+    double? previousBearing;
+
+    for (int i = 0; i < path.length - 1; i++) {
+      final fromNode = _graphService.getNode(path[i])!;
+      final toNode = _graphService.getNode(path[i + 1])!;
+
+      // Calculate distance for this segment
+      final distance = GeoUtils.calculateDistance(
+        fromNode.position,
+        toNode.position,
+      );
+
+      // Calculate bearing for this segment
+      final bearing = NavigationUtils.calculateBearing(
+        fromNode.position,
+        toNode.position,
+      );
+
+      // Get cardinal direction
+      final direction = NavigationUtils.getCardinalDirection(bearing);
+
+      // Determine turn type
+      TurnType turnType;
+      if (i == 0) {
+        // First step - starting point
+        turnType = TurnType.start;
+      } else if (i == path.length - 2) {
+        // Last step - destination
+        turnType = TurnType.destination;
+      } else {
+        // Intermediate step - determine turn type
+        turnType = NavigationUtils.determineTurnType(previousBearing!, bearing);
+      }
+
+      // Create the navigation step
+      final step = NavigationStep(
+        fromNodeId: path[i],
+        toNodeId: path[i + 1],
+        distance: distance,
+        direction: direction,
+        bearing: bearing,
+        instruction: '', // Will be set below
+        turnType: turnType,
+      );
+
+      // Generate instruction
+      final instruction = NavigationUtils.generateInstruction(step);
+      final stepWithInstruction = step.copyWith(instruction: instruction);
+
+      steps.add(stepWithInstruction);
+      previousBearing = bearing;
+    }
+
+    return steps;
   }
 
   /// Finds all reachable nodes from a starting node

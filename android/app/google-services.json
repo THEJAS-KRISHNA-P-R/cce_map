@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "553304998844",
+    "project_id": "cce-navigation",
+    "storage_bucket": "cce-navigation.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:553304998844:android:99b81b6e3e5099f9ae21b9",
+        "android_client_info": {
+          "package_name": "com.cce.cce_map"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyArkMAz5TtMiytJoKs7kKYztl7RMZy8V5o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
